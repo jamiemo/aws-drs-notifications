@@ -1,0 +1,132 @@
+{
+  "Description": "Send AWS DRS notifiactions vai SNS.",
+  "Parameters": {
+    "ProjectName": {
+      "Description": "Please enter the project name.",
+      "Type": "String",
+      "AllowedPattern": "[a-zA-Z0-9-_ ]*",
+      "ConstraintDescription": "Must contain only alphanumeric characters.",
+      "Default": "AWS DRS Notifications"
+    },
+    "EmailAddress": {
+      "Description": "Email address for SNS notifications",
+      "Type": "String",
+      "MinLength": "8",
+      "MaxLength": "41",
+      "AllowedPattern": "^[\\x20-\\x45]?[\\w-\\+]+(\\.[\\w]+)*@[\\w-]+(\\.[\\w]+)*(\\.[a-z]{2,})$",
+      "ConstraintDescription": "Email address for SNS notifications."
+    }
+  },
+  "Resources": {
+    "EventRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Description": "AWS DRS Notiification",
+        "EventPattern": {
+          "source": [
+            "aws.drs"
+          ],
+          "detail-type": [
+            "DRS Source Server Data Replication Stalled Change"
+          ]
+        },
+        "Name": "aws-drs-notification",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Arn": {
+              "Ref": "SNSTopic"
+            },
+            "Id": "cwatch-topic"
+          }
+        ]
+      }
+    },
+    "SNSTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "DisplayName": "AWS DRS Notifications",
+        "TopicName": "aws-drs-event",
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": {
+              "Ref": "ProjectName"
+            }
+          },
+          {
+            "Key": "ManagedBy",
+            "Value": "CloudFormation"
+          }
+        ]
+      }
+    },
+    "SNSSubscription": {
+      "Type" : "AWS::SNS::Subscription",
+      "Properties" : {
+          "Endpoint" : {
+            "Ref": "EmailAddress"
+          },
+          "Protocol" : "email",
+          "TopicArn" : {
+            "Ref": "SNSTopic"
+          }
+        }
+    },
+    "TopicPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "SNSTopic"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2008-10-17",
+          "Id": "aws-drs-event",
+          "Statement": [
+            {
+              "Sid": "aws-drs-event-sns",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": [
+                "SNS:GetTopicAttributes",
+                "SNS:SetTopicAttributes",
+                "SNS:AddPermission",
+                "SNS:RemovePermission",
+                "SNS:DeleteTopic",
+                "SNS:Subscribe",
+                "SNS:ListSubscriptionsByTopic",
+                "SNS:Publish",
+                "SNS:Receive"
+              ],
+              "Resource": {
+                "Ref": "SNSTopic"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceOwner": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              }
+            },
+            {
+              "Sid": "aws-drs-event-sns-publish",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "events.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "SNSTopic"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
